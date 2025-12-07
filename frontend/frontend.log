@@ -1,0 +1,11 @@
+
+> university-scheduler-frontend@0.0.1 dev /Users/hamed/Documents/myprojects/university_semester_scheduler/frontend
+> vite dev --host
+
+
+  VITE v5.4.21  ready in 73 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.25:5173/
+  ➜  press h + enter to show help
+/Users/hamed/Library/pnpm/pnpm: line 12: 12162 Hangup: 1               "$basedir/.tools/@pnpm+macos-arm64/10.17.1/node_modules/@pnpm/macos-arm64/pnpm" "$@"

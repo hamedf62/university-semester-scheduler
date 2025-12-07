@@ -10,65 +10,81 @@ class FitnessCalculator:
     def calculate_cost(
         self,
         genome_genes: np.ndarray,
-        lesson_teacher_ids: np.ndarray,
         lesson_group_ids: np.ndarray,
-        timeslot_day_map: np.ndarray,
+        timeslot_day_map: np.ndarray,  # Map timeslot_idx -> day_idx (0-5)
+        timeslot_daily_idx_map: np.ndarray,  # Map timeslot_idx -> 0, 1, 2, 3, 4
     ) -> float:
         """
         Calculate the weighted cost (lower is better).
-        timeslot_day_map: array mapping timeslot_idx to day_idx (0-5)
         """
         cost = 0.0
         timeslot_indices = genome_genes[:, 0]
+        parities = genome_genes[:, 2]  # 0, 1, 2
+        teacher_indices = genome_genes[:, 3]
 
-        # Map timeslots to days
-        days = timeslot_day_map[timeslot_indices]
+        # Helper to calculate gaps for a set of slots
+        def calc_gaps(slots):
+            if len(slots) <= 1:
+                return 0
+            daily_slots = timeslot_daily_idx_map[slots]
+            # Sort by daily slot
+            daily_slots.sort()
+            # Gaps = sum(diff - 1)
+            return np.sum(np.diff(daily_slots) - 1)
 
-        # 1. Teacher Gaps
-        # For each teacher, check their daily schedule.
-        # Ideally, they should have continuous blocks.
-        unique_teachers = np.unique(lesson_teacher_ids)
-        for t_id in unique_teachers:
-            t_mask = lesson_teacher_ids == t_id
-            t_days = days[t_mask]
+        # 1. Teacher Idle Time (Gaps)
+        unique_teachers = np.unique(teacher_indices)
+        for t_idx in unique_teachers:
+            t_mask = teacher_indices == t_idx
             t_slots = timeslot_indices[t_mask]
+            t_parities = parities[t_mask]
+            t_days = timeslot_day_map[t_slots]
 
             # For each day the teacher works
             for d in np.unique(t_days):
-                d_slots = np.sort(t_slots[t_days == d])
-                if len(d_slots) > 1:
-                    # Calculate gaps: difference between adjacent slots - 1
-                    # Assuming slots are sequential integers for the day
-                    # We need a map from timeslot_idx to daily_slot_idx (0-4)
-                    # Let's assume timeslot_idx = day * 5 + slot
-                    daily_slots = d_slots % 5
-                    gaps = np.sum(np.diff(daily_slots) - 1)
-                    cost += gaps * self.weights.get("teacher_gaps", 1.0)
+                day_mask = t_days == d
+                d_slots = t_slots[day_mask]
+                d_parities = t_parities[day_mask]
 
-        # 2. Student Compactness (3 days preferred)
+                # Odd Week Slots: Parity is ODD(0) or BOTH(2)
+                odd_mask = (d_parities == 0) | (d_parities == 2)
+                odd_slots = d_slots[odd_mask]
+                cost += calc_gaps(odd_slots) * self.weights.get("teacher_idle", 1.0)
+
+                # Even Week Slots: Parity is EVEN(1) or BOTH(2)
+                even_mask = (d_parities == 1) | (d_parities == 2)
+                even_slots = d_slots[even_mask]
+                cost += calc_gaps(even_slots) * self.weights.get("teacher_idle", 1.0)
+
+        # 2. Student Constraints
         unique_groups = np.unique(lesson_group_ids)
         for g_id in unique_groups:
             g_mask = lesson_group_ids == g_id
-            g_days = np.unique(days[g_mask])
-            num_active_days = len(g_days)
-
-            # Penalty if > 3 days
-            if num_active_days > 3:
-                cost += (num_active_days - 3) * self.weights.get(
-                    "student_compactness", 1.0
-                )
-
-            # 3. Student Gaps
             g_slots = timeslot_indices[g_mask]
-            g_days_full = days[g_mask]
-            for d in g_days:
-                d_slots = np.sort(g_slots[g_days_full == d])
-                if len(d_slots) > 1:
-                    daily_slots = d_slots % 5
-                    gaps = np.sum(np.diff(daily_slots) - 1)
-                    cost += gaps * self.weights.get("student_gaps", 1.0)
+            g_parities = parities[g_mask]
+            g_days = timeslot_day_map[g_slots]
 
-        # 4. Room Utilization (Optional)
-        # cost += ...
+            # Compactness: Count unique days
+            # Odd Week Days
+            odd_mask = (g_parities == 0) | (g_parities == 2)
+            odd_days = np.unique(g_days[odd_mask])
+            cost += len(odd_days) * self.weights.get("student_compactness", 1.0)
+
+            # Even Week Days
+            even_mask = (g_parities == 1) | (g_parities == 2)
+            even_days = np.unique(g_days[even_mask])
+            cost += len(even_days) * self.weights.get("student_compactness", 1.0)
+
+            # Idle Time (Gaps)
+            for d in np.unique(g_days):
+                day_mask = g_days == d
+                d_slots = g_slots[day_mask]
+                d_parities = g_parities[day_mask]
+
+                odd_slots = d_slots[(d_parities == 0) | (d_parities == 2)]
+                cost += calc_gaps(odd_slots) * self.weights.get("student_idle", 1.0)
+
+                even_slots = d_slots[(d_parities == 1) | (d_parities == 2)]
+                cost += calc_gaps(even_slots) * self.weights.get("student_idle", 1.0)
 
         return cost

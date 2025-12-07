@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.db import get_session
@@ -19,7 +19,9 @@ router = APIRouter()
 
 @router.post("/upload/data")
 async def upload_data(
-    file: UploadFile = File(...), session: AsyncSession = Depends(get_session)
+    project_id: int = Form(...),
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
 ):
     if not file.filename.endswith((".xlsx", ".xls")):
         raise HTTPException(
@@ -140,10 +142,11 @@ async def upload_data(
                 )
                 teacher = t_res.scalars().first()
 
-            if course and group and teacher:
+            if course and group:
                 lesson = Lesson(
+                    project_id=project_id,
                     course_id=course.id,
-                    teacher_id=teacher.id,
+                    teacher_id=teacher.id if teacher else None,
                     group_id=group.id,
                     duration_slots=l_data["duration_slots"],
                 )

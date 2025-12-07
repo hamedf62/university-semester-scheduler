@@ -29,6 +29,11 @@ class ExcelParser:
                 pd.read_excel(xls, "TeacherCourses")
             )
 
+        if "StudentGroupCourses" in xls.sheet_names:
+            data["student_group_courses"] = self._parse_student_group_courses(
+                pd.read_excel(xls, "StudentGroupCourses")
+            )
+
         if "Lessons" in xls.sheet_names:
             data["lessons"] = self._parse_lessons(pd.read_excel(xls, "Lessons"))
 
@@ -79,8 +84,27 @@ class ExcelParser:
                 except ValueError:
                     r_type = ClassroomType.NORMAL
 
+                # New fields
+                units = int(row.get("Units", 2))
+                min_pop = (
+                    int(row.get("MinPopulation"))
+                    if pd.notna(row.get("MinPopulation"))
+                    else None
+                )
+                max_pop = (
+                    int(row.get("MaxPopulation"))
+                    if pd.notna(row.get("MaxPopulation"))
+                    else None
+                )
+
                 courses.append(
-                    {"name": str(row["Name"]).strip(), "required_room_type": r_type}
+                    {
+                        "name": str(row["Name"]).strip(),
+                        "required_room_type": r_type,
+                        "units": units,
+                        "min_population": min_pop,
+                        "max_population": max_pop,
+                    }
                 )
         return courses
 
@@ -93,17 +117,36 @@ class ExcelParser:
                 except ValueError:
                     degree = Degree.BACHELOR
 
+                allowed_days = (
+                    str(row.get("AllowedDays", "")).strip()
+                    if pd.notna(row.get("AllowedDays"))
+                    else None
+                )
+
                 groups.append(
                     {
                         "name": str(row["Name"]).strip(),
                         "field": str(row["Field"]).strip(),
                         "degree": degree,
                         "entrance_year": int(row["EntranceYear"]),
-                        "entrance_semester": int(row["EntranceSemester"]),  # 1 or 2
+                        "entrance_semester": int(row["EntranceSemester"]),
                         "population": int(row["Population"]),
+                        "allowed_days": allowed_days,
                     }
                 )
         return groups
+
+    def _parse_student_group_courses(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        links = []
+        for _, row in df.iterrows():
+            if pd.notna(row.get("GroupName")) and pd.notna(row.get("CourseName")):
+                links.append(
+                    {
+                        "group_name": str(row["GroupName"]).strip(),
+                        "course_name": str(row["CourseName"]).strip(),
+                    }
+                )
+        return links
 
     def _parse_teacher_courses(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
         links = []

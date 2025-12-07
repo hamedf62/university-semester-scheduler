@@ -10,8 +10,8 @@
         </div>
         <div class="flex-none">
             <ul class="menu menu-horizontal px-1">
-                <li><a>Dashboard</a></li>
-                <li><a>Settings</a></li>
+                <li><a href="/">Dashboard</a></li>
+                <li><a href="/settings">Global Settings</a></li>
             </ul>
         </div>
     </div>
